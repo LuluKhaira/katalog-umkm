@@ -68,6 +68,56 @@ export async function login(prevState, formData) {
 }
 
 /**
+ * Server Action untuk mengganti password admin yang sedang login.
+ * Memeriksa autentikasi di server, memvalidasi panjang minimal 8 karakter dan kesamaan konfirmasi.
+ */
+export async function gantiPassword(prevState, formData) {
+  const data = formData instanceof FormData ? formData : prevState;
+  const isActionState = formData instanceof FormData;
+
+  if (!data || typeof data.get !== "function") {
+    return { error: "Data formulir tidak valid." };
+  }
+
+  // 1. Periksa sesi admin di server
+  let supabase;
+  try {
+    const verified = await verifikasiAdmin();
+    supabase = verified.supabase;
+  } catch (err) {
+    const pesan = err.message || "Akses ditolak: Anda harus login terlebih dahulu.";
+    if (isActionState) {
+      return { error: pesan };
+    }
+    redirect(`/admin/login?error=${encodeURIComponent(pesan)}`);
+  }
+
+  const passwordBaru = data.get("password_baru");
+  const konfirmasiPassword = data.get("konfirmasi_password");
+
+  // 2. Validasi panjang password baru minimal 8 karakter
+  if (!passwordBaru || String(passwordBaru).length < 8) {
+    return { error: "Password baru minimal 8 karakter." };
+  }
+
+  // 3. Validasi konfirmasi password harus sama
+  if (passwordBaru !== konfirmasiPassword) {
+    return { error: "Konfirmasi password tidak sama dengan password baru." };
+  }
+
+  // 4. Update password melalui Supabase Auth
+  const { error } = await supabase.auth.updateUser({
+    password: String(passwordBaru),
+  });
+
+  if (error) {
+    return { error: error.message || "Gagal mengganti password." };
+  }
+
+  return { success: true, message: "Password berhasil diganti." };
+}
+
+/**
  * Server Action untuk mengakhiri sesi admin (logout) lalu kembali ke halaman login.
  */
 export async function keluar() {
