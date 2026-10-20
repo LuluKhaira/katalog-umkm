@@ -4,6 +4,26 @@ import { redirect } from "next/navigation";
 import { createSessionClient } from "@/lib/supabase/session";
 
 /**
+ * Memastikan admin sudah login di server sebelum menjalankan Server Action yang mengubah data.
+ * Mengambil data pengguna dari Supabase Auth secara aman di sisi server.
+ */
+export async function verifikasiAdmin() {
+  const supabase = await createSessionClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    throw new Error("Akses ditolak: Anda harus login sebagai admin.");
+  }
+
+  return { supabase, user };
+}
+
+export { verifikasiAdmin as requireAdmin, verifikasiAdmin as requireAuth };
+
+/**
  * Server Action untuk memproses login admin menggunakan Supabase Auth.
  * Mendukung pemanggilan via useActionState(login, null) maupun langsung lewat <form action={login}>.
  */
@@ -55,4 +75,3 @@ export async function keluar() {
   await supabase.auth.signOut();
   redirect("/admin/login");
 }
-
