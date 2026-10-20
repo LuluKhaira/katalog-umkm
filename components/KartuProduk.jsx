@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { formatRupiah } from "@/lib/format";
+import TombolFavorit from "@/components/TombolFavorit";
 
-// US-01, US-19 (Stok Habis), US-20 (Harga Coret & Badge Promo)
+// US-01, US-19 (Stok Habis), US-20 (Harga Coret & Badge Promo), US-24 (Favorit)
 export default function KartuProduk({ produk }) {
   const isHabis = produk.stok !== undefined && Number(produk.stok) <= 0;
   const adaDiskon =
@@ -14,7 +15,7 @@ export default function KartuProduk({ produk }) {
       href={`/produk/${produk.id}`}
       className="group relative flex flex-col overflow-hidden rounded-2xl border border-garis bg-latar transition-shadow hover:shadow-sm"
     >
-      {/* Badge stok habis atau badge promo */}
+      {/* Badge stok habis atau promo di pojok kiri atas */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         {isHabis ? (
           <span className="rounded-md bg-bahaya px-2 py-0.5 text-xs font-bold text-white shadow-sm">
@@ -27,6 +28,11 @@ export default function KartuProduk({ produk }) {
             </span>
           )
         )}
+      </div>
+
+      {/* Tombol favorit di pojok kanan atas (US-24) */}
+      <div className="absolute top-2 right-2 z-10">
+        <TombolFavorit id={produk.id} />
       </div>
 
       <img

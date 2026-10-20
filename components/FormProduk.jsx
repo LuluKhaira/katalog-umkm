@@ -6,11 +6,10 @@ import Tombol from "@/components/Tombol";
 import { buatDeskripsiAI } from "@/app/admin/actions";
 
 // Dipakai untuk tambah produk (US-08) dan ubah produk (US-09).
-// Dilengkapi AI Gemini (US-14), Galeri Foto (US-18), Stok (US-19), Diskon & Badge (US-20).
+// Dilengkapi AI Gemini (US-14), Galeri Foto (US-18), Stok (US-19), Diskon & Badge (US-20), Upload Foto Storage (US-29).
 export default function FormProduk({ action, produk = {}, labelTombol = "Simpan produk" }) {
   const [state, formAction, isPending] = useActionState(action, null);
 
-  // State untuk form fields yang terhubung dengan AI
   const [nama, setNama] = useState(produk.nama || "");
   const [kategori, setKategori] = useState(produk.kategori || "");
   const [deskripsi, setDeskripsi] = useState(produk.deskripsi || "");
@@ -106,10 +105,23 @@ export default function FormProduk({ action, produk = {}, labelTombol = "Simpan 
           placeholder="Misal: Baru, Terlaris, Hemat"
         />
         <Input
-          label="Link foto utama"
+          label="Link foto utama (URL)"
           name="foto_url"
           placeholder="https://... atau /produk/nama.svg"
           defaultValue={produk.foto_url}
+        />
+      </div>
+
+      {/* US-29: Input Upload File Foto ke Supabase Storage */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-semibold">
+          Atau Upload File Foto (Maks 2 MB, JPEG/PNG/WebP)
+        </label>
+        <input
+          type="file"
+          name="foto_file"
+          accept="image/jpeg,image/png,image/webp"
+          className="w-full rounded-lg border border-garis bg-latar p-2 text-sm text-teks file:mr-3 file:rounded-md file:border-0 file:bg-permukaan file:px-3 file:py-1 file:text-xs file:font-semibold hover:file:bg-garis"
         />
       </div>
 
