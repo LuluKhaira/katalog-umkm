@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { toko } from "@/lib/toko";
 
-export default function Footer() {
+export default function Footer({ dataToko }) {
+  const info = dataToko || toko;
+
   return (
     <footer className="mt-16 border-t border-garis bg-permukaan transition-colors">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 text-sm text-teks-lembut sm:flex-row sm:justify-between">
         <div className="flex flex-col gap-1">
-          <p className="font-bold text-teks">{toko.nama}</p>
-          <p>{toko.alamat}</p>
-          <p>{toko.jamBuka}</p>
+          <p className="font-bold text-teks">{info.nama}</p>
+          <p>{info.alamat}</p>
+          <p>{info.jamBuka}</p>
         </div>
 
         <div className="flex flex-col gap-2 sm:items-end">

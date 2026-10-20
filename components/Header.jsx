@@ -6,7 +6,7 @@ import { useKeranjang } from "@/lib/keranjang-context";
 import { useFavorit } from "@/lib/favorit-context";
 import ToggleTema from "@/components/ToggleTema";
 
-export default function Header() {
+export default function Header({ namaToko }) {
   const { totalItem } = useKeranjang();
   const { favoritIds } = useFavorit();
 
@@ -14,7 +14,7 @@ export default function Header() {
     <header className="border-b border-garis bg-latar transition-colors">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:py-4">
         <Link href="/" className="text-lg font-extrabold tracking-tight text-utama">
-          {toko.nama}
+          {namaToko || toko.nama}
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">

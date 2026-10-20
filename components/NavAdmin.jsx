@@ -14,10 +14,19 @@ export default function NavAdmin() {
         Ulasan
       </Link>
       <Link href="/admin/banner" className="font-semibold hover:text-utama">
-        Banner Promo
+        Banner
+      </Link>
+      <Link href="/admin/log" className="font-semibold hover:text-utama">
+        Log Aktivitas
+      </Link>
+      <Link href="/admin/akun" className="font-semibold hover:text-utama">
+        Kelola Admin
+      </Link>
+      <Link href="/admin/pengaturan" className="font-semibold hover:text-utama">
+        Pengaturan
       </Link>
       <Link href="/admin/password" className="font-semibold hover:text-utama">
-        Ganti password
+        Password
       </Link>
       <form action={keluar} className="ml-auto">
         <button type="submit" className="text-teks-lembut hover:text-bahaya cursor-pointer">

@@ -1,29 +1,38 @@
 import Link from "next/link";
-import { toko } from "@/lib/toko";
+import { getPengaturanToko } from "@/lib/pengaturan";
 import Tombol from "@/components/Tombol";
 
-// US-22: Halaman Tentang dan Kontak Toko
-export const metadata = {
-  title: `Tentang Kami | ${toko.nama}`,
-  description: `Profil dan kontak resmi ${toko.nama}. ${toko.tagline}`,
-};
+export const dynamic = "force-dynamic";
 
-export default function HalamanTentang() {
-  const waUrl = `https://wa.me/${toko.nomorWhatsApp}?text=${encodeURIComponent(
-    `Halo ${toko.nama}, saya ingin bertanya tentang toko Anda.`
+// US-22 & US-43: Metadata judul halaman tentang dari database pengaturan toko
+export async function generateMetadata() {
+  const dataToko = await getPengaturanToko();
+  return {
+    title: `Tentang Kami | ${dataToko.nama}`,
+    description: `Profil dan kontak resmi ${dataToko.nama}. ${dataToko.tagline}`,
+  };
+}
+
+// US-22 & US-43: Halaman Tentang dan Kontak Toko (Nama, Alamat, Jam Buka, WhatsApp dari database)
+export default async function HalamanTentang() {
+  const dataToko = await getPengaturanToko();
+  const nomorWa = dataToko.whatsapp || dataToko.nomorWhatsApp;
+
+  const waUrl = `https://wa.me/${nomorWa}?text=${encodeURIComponent(
+    `Halo ${dataToko.nama}, saya ingin bertanya tentang toko Anda.`
   )}`;
 
   return (
     <div className="mx-auto max-w-2xl py-12">
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-3xl font-extrabold sm:text-4xl">{toko.nama}</h1>
-          <p className="mt-2 text-lg text-utama font-medium">{toko.tagline}</p>
+          <h1 className="text-3xl font-extrabold sm:text-4xl">{dataToko.nama}</h1>
+          <p className="mt-2 text-lg text-utama font-medium">{dataToko.tagline}</p>
         </div>
 
         <div className="rounded-2xl border border-garis bg-permukaan p-6 leading-relaxed text-teks-lembut">
           <p>
-            Selamat datang di katalog resmi <strong>{toko.nama}</strong>. Kami berdedikasi
+            Selamat datang di katalog resmi <strong>{dataToko.nama}</strong>. Kami berdedikasi
             menyediakan produk-produk berkualitas terbaik langsung ke tangan Anda. Semua pesanan
             dapat dilakukan secara praktis dan cepat melalui komunikasi langsung via WhatsApp.
           </p>
@@ -34,17 +43,17 @@ export default function HalamanTentang() {
 
           <div className="flex flex-col gap-1 text-sm">
             <span className="font-semibold text-teks">Alamat:</span>
-            <span className="text-teks-lembut">{toko.alamat}</span>
+            <span className="text-teks-lembut">{dataToko.alamat}</span>
           </div>
 
           <div className="flex flex-col gap-1 text-sm">
             <span className="font-semibold text-teks">Jam Operasional:</span>
-            <span className="text-teks-lembut">{toko.jamBuka}</span>
+            <span className="text-teks-lembut">{dataToko.jamBuka}</span>
           </div>
 
           <div className="flex flex-col gap-1 text-sm">
             <span className="font-semibold text-teks">WhatsApp Pemesanan:</span>
-            <span className="text-teks-lembut">+{toko.nomorWhatsApp}</span>
+            <span className="text-teks-lembut">+{nomorWa}</span>
           </div>
 
           <div className="pt-2">
@@ -59,11 +68,12 @@ export default function HalamanTentang() {
           </div>
         </div>
 
-        <div className="pt-4">
-          <Tombol href="/">Kembali ke Katalog Produk</Tombol>
+        <div className="flex justify-start">
+          <Tombol href="/" varian="garis">
+            &larr; Kembali ke Katalog
+          </Tombol>
         </div>
       </div>
     </div>
   );
 }
-

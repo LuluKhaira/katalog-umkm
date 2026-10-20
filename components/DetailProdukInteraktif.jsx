@@ -8,10 +8,12 @@ import { useKeranjang } from "@/lib/keranjang-context";
 import TombolFavorit from "@/components/TombolFavorit";
 import { catatKlikWa } from "@/app/admin/actions";
 
-// US-12 (Jumlah & Varian), US-19 (Stok), US-20 (Harga Diskon), US-21 (Keranjang), US-23 (Bagikan), US-36 (Terakhir Dilihat), US-37 (Bandingkan), US-40 (Catat Klik WA)
-export default function DetailProdukInteraktif({ produk }) {
+// US-12, US-19, US-20, US-21, US-23, US-36, US-37, US-40, US-43 (WhatsApp dinamis), US-48 (Varian harga per ukuran)
+export default function DetailProdukInteraktif({ produk, daftarVarian = [], nomorWhatsApp }) {
+  const adaVarianDb = Array.isArray(daftarVarian) && daftarVarian.length > 0;
+  const [varianDb, setVarianDb] = useState(adaVarianDb ? daftarVarian[0] : null);
+  const [varianFallback, setVarianFallback] = useState("Standar");
   const [jumlah, setJumlah] = useState(1);
-  const [varian, setVarian] = useState("Standar");
   const [bagikanPesan, setBagikanPesan] = useState(null);
   const [keranjangSukses, setKeranjangSukses] = useState(false);
 
@@ -32,21 +34,29 @@ export default function DetailProdukInteraktif({ produk }) {
   }, [produk?.id]);
 
   const isHabis = produk.stok !== undefined && Number(produk.stok) <= 0;
-  const hargaAktif =
-    typeof produk.harga_diskon === "number" &&
-    produk.harga_diskon > 0 &&
-    produk.harga_diskon < produk.harga
-      ? produk.harga_diskon
-      : produk.harga;
-  const totalHarga = hargaAktif * jumlah;
 
-  // Format pesan WhatsApp
+  // US-48: Harga berubah sesuai varian terpilih dari database, atau harga normal/diskon jika tanpa varian
+  const hargaSatuan = adaVarianDb
+    ? (varianDb?.harga ?? produk.harga)
+    : (typeof produk.harga_diskon === "number" &&
+       produk.harga_diskon > 0 &&
+       produk.harga_diskon < produk.harga)
+    ? produk.harga_diskon
+    : produk.harga;
+
+  const totalHarga = hargaSatuan * jumlah;
+  const namaVarianAktif = adaVarianDb ? varianDb?.nama || "Standar" : varianFallback;
+
+  // Format pesan WhatsApp (US-48: memuat nama varian dan harga varian yang dipilih)
   const pesanWa = `Halo, saya ingin memesan:
 - Produk: ${produk.nama}
-- Varian: ${varian}
+- Varian: ${namaVarianAktif} (${formatRupiah(hargaSatuan)})
 - Jumlah: ${jumlah}
 Total: ${formatRupiah(totalHarga)}`;
-  const waUrl = `https://wa.me/${toko.nomorWhatsApp}?text=${encodeURIComponent(pesanWa)}`;
+
+  // US-43: Memakai nomor WhatsApp dari database dengan lib/toko.js sebagai cadangan
+  const targetNomorWa = nomorWhatsApp || toko.nomorWhatsApp;
+  const waUrl = `https://wa.me/${targetNomorWa}?text=${encodeURIComponent(pesanWa)}`;
 
   // US-40: Catat klik pemesanan WhatsApp tanpa menghambat user
   const handlePesanWa = () => {
@@ -68,9 +78,7 @@ Total: ${formatRupiah(totalHarga)}`;
       try {
         await navigator.share(shareData);
         return;
-      } catch (err) {
-        // User cancelled or share failed, fallback to clipboard
-      }
+      } catch (err) {}
     }
 
     try {
@@ -84,33 +92,61 @@ Total: ${formatRupiah(totalHarga)}`;
   };
 
   const handleTambahKeranjang = () => {
-    tambahItem(produk, jumlah, varian);
+    const produkCustom = {
+      ...produk,
+      harga: hargaSatuan,
+      harga_diskon: null,
+    };
+    tambahItem(produkCustom, jumlah, namaVarianAktif);
     setKeranjangSukses(true);
     setTimeout(() => setKeranjangSukses(false), 2500);
   };
 
-  const daftarVarian = ["Standar", "Besar", "Spesial"];
+  const varianDefault = ["Standar", "Besar", "Spesial"];
 
   return (
     <div className="flex flex-col gap-5 pt-2">
-      {/* Pilihan varian (US-12) */}
+      {/* Pilihan varian (US-12 & US-48) */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-semibold text-teks">Pilih Varian:</label>
+        <label className="text-sm font-semibold text-teks">
+          Pilih Varian {adaVarianDb && <span className="text-xs font-normal text-teks-lembut">(Harga menyesuaikan)</span>}:
+        </label>
         <div className="flex flex-wrap gap-2">
-          {daftarVarian.map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setVarian(v)}
-              className={`rounded-lg border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                varian === v
-                  ? "border-utama bg-utama text-white"
-                  : "border-garis bg-latar text-teks hover:border-utama"
-              }`}
-            >
-              {v}
-            </button>
-          ))}
+          {adaVarianDb
+            ? daftarVarian.map((v) => {
+                const isSelected = varianDb?.id === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setVarianDb(v)}
+                    className={`rounded-lg border px-3.5 py-1.5 text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                      isSelected
+                        ? "border-utama bg-utama text-white shadow-xs"
+                        : "border-garis bg-latar text-teks hover:border-utama"
+                    }`}
+                  >
+                    <span>{v.nama}</span>
+                    <span className={isSelected ? "text-white/90 text-xs font-normal" : "text-harga text-xs font-bold"}>
+                      {formatRupiah(v.harga)}
+                    </span>
+                  </button>
+                );
+              })
+            : varianDefault.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setVarianFallback(v)}
+                  className={`rounded-lg border px-3.5 py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
+                    varianFallback === v
+                      ? "border-utama bg-utama text-white"
+                      : "border-garis bg-latar text-teks hover:border-utama"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
         </div>
       </div>
 
@@ -124,7 +160,7 @@ Total: ${formatRupiah(totalHarga)}`;
             type="button"
             onClick={() => setJumlah((prev) => Math.max(1, prev - 1))}
             disabled={jumlah <= 1 || isHabis}
-            className="px-3 py-1 text-base font-bold text-teks hover:bg-permukaan disabled:opacity-40"
+            className="px-3 py-1 text-base font-bold text-teks hover:bg-permukaan disabled:opacity-40 cursor-pointer"
           >
             -
           </button>
@@ -133,7 +169,7 @@ Total: ${formatRupiah(totalHarga)}`;
             type="button"
             onClick={() => setJumlah((prev) => prev + 1)}
             disabled={isHabis}
-            className="px-3 py-1 text-base font-bold text-teks hover:bg-permukaan disabled:opacity-40"
+            className="px-3 py-1 text-base font-bold text-teks hover:bg-permukaan disabled:opacity-40 cursor-pointer"
           >
             +
           </button>
@@ -156,14 +192,14 @@ Total: ${formatRupiah(totalHarga)}`;
               target="_blank"
               rel="noopener noreferrer"
               onClick={handlePesanWa}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-utama px-5 py-3 text-center font-semibold text-white hover:bg-utama-gelap sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-lg bg-utama px-5 py-3 text-center font-semibold text-white hover:bg-utama-gelap sm:w-auto shadow-xs"
             >
               Pesan via WhatsApp ({formatRupiah(totalHarga)})
             </a>
             <button
               type="button"
               onClick={handleTambahKeranjang}
-              className="inline-flex w-full items-center justify-center rounded-lg border border-garis bg-latar px-5 py-3 font-semibold text-teks hover:border-utama hover:text-utama sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-lg border border-garis bg-latar px-5 py-3 font-semibold text-teks hover:border-utama hover:text-utama sm:w-auto cursor-pointer"
             >
               {keranjangSukses ? "✓ Ditambahkan!" : "+ Keranjang"}
             </button>
@@ -175,7 +211,7 @@ Total: ${formatRupiah(totalHarga)}`;
           <button
             type="button"
             onClick={handleBagikan}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-garis bg-permukaan px-3 py-2.5 text-sm font-semibold text-teks hover:border-utama"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-garis bg-permukaan px-3 py-2.5 text-sm font-semibold text-teks hover:border-utama cursor-pointer"
             title="Bagikan produk ini"
           >
             <svg

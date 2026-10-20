@@ -3,19 +3,22 @@ import KartuProduk from "@/components/KartuProduk";
 import Tombol from "@/components/Tombol";
 import TerakhirDilihat from "@/components/TerakhirDilihat";
 import { toko } from "@/lib/toko";
+import { getPengaturanToko } from "@/lib/pengaturan";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 12;
 
-// US-01, US-11 (Filter & Cari), US-15 (Urutkan), US-16 (Paginasi), US-32 (Aktif), US-36 (Terakhir Dilihat), US-42 (Banner Promo)
+// US-01, US-11 (Filter & Cari), US-15 (Urutkan), US-16 (Paginasi), US-32 (Aktif), US-36 (Terakhir Dilihat), US-42 (Banner Promo), US-43 (Pengaturan Toko), US-47 (Urutan Produk)
 export default async function HalamanKatalog({ searchParams }) {
   const params = (await searchParams) || {};
   const cari = params.q?.toString().trim() || "";
   const kategoriDipilih = params.kategori?.toString().trim() || "";
   const urutan = params.sort?.toString().trim() || "terbaru";
   const halaman = Math.max(1, parseInt(params.page, 10) || 1);
+
+  const dataToko = await getPengaturanToko();
 
   let daftarProduk = [];
   let daftarKategori = [];
@@ -62,13 +65,14 @@ export default async function HalamanKatalog({ searchParams }) {
       query = query.eq("kategori", kategoriDipilih);
     }
 
-    // US-15: Urutkan produk di query database
+    // US-15 & US-47: Urutkan produk di query database
     if (urutan === "termurah") {
       query = query.order("harga", { ascending: true });
     } else if (urutan === "termahal") {
       query = query.order("harga", { ascending: false });
     } else {
-      query = query.order("id", { ascending: false });
+      // US-47: Urutan default dari kolom urutan (lalu id descending)
+      query = query.order("urutan", { ascending: false }).order("id", { ascending: false });
     }
 
     // US-16: Paginasi range di query database
@@ -76,13 +80,22 @@ export default async function HalamanKatalog({ searchParams }) {
     const to = from + PER_PAGE - 1;
     query = query.range(from, to);
 
-    const { data, count, error } = await query;
+    let res = await query;
 
-    if (error) {
-      pesanError = `Gagal mengambil data produk: ${error.message}`;
+    // Fallback jika kolom urutan belum dimigrasi
+    if (res.error && res.error.message?.includes("urutan")) {
+      let fallbackQuery = supabase.from("produk").select("*", { count: "exact" }).neq("aktif", false);
+      if (cari) fallbackQuery = fallbackQuery.ilike("nama", `%${cari}%`);
+      if (kategoriDipilih) fallbackQuery = fallbackQuery.eq("kategori", kategoriDipilih);
+      fallbackQuery = fallbackQuery.order("id", { ascending: false }).range(from, to);
+      res = await fallbackQuery;
+    }
+
+    if (res.error) {
+      pesanError = `Gagal mengambil data produk: ${res.error.message}`;
     } else {
-      daftarProduk = data || [];
-      totalData = count || 0;
+      daftarProduk = res.data || [];
+      totalData = res.count || 0;
       totalHalaman = Math.max(1, Math.ceil(totalData / PER_PAGE));
     }
   } catch (err) {
@@ -106,10 +119,10 @@ export default async function HalamanKatalog({ searchParams }) {
       {/* Header Info Toko */}
       <section className="py-8 sm:py-12">
         <h1 className="max-w-2xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
-          {toko.nama}
+          {dataToko.nama}
         </h1>
-        <p className="mt-3 max-w-xl text-lg text-teks-lembut">{toko.tagline}</p>
-        <p className="mt-2 text-sm text-teks-lembut">{toko.jamBuka}</p>
+        <p className="mt-3 max-w-xl text-lg text-teks-lembut">{dataToko.tagline}</p>
+        <p className="mt-2 text-sm text-teks-lembut">{dataToko.jamBuka}</p>
       </section>
 
       {/* US-42: Banner Promo di Beranda */}

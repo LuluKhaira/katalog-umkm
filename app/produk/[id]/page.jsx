@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatRupiah } from "@/lib/format";
-import { toko } from "@/lib/toko";
+import { formatRupiah, toSlug } from "@/lib/format";
+import { getPengaturanToko } from "@/lib/pengaturan";
 import { createServerClient } from "@/lib/supabase/server";
 import GaleriFoto from "@/components/GaleriFoto";
 import DetailProdukInteraktif from "@/components/DetailProdukInteraktif";
 import KartuProduk from "@/components/KartuProduk";
 import UlasanProduk from "@/components/UlasanProduk";
+import AsistenAiProduk from "@/components/AsistenAiProduk";
 
 // US-26: generateMetadata untuk SEO dan Open Graph
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const supabase = createServerClient();
+  const dataToko = await getPengaturanToko();
 
   const { data: produk } = await supabase
     .from("produk")
@@ -32,11 +34,11 @@ export async function generateMetadata({ params }) {
     : `${siteUrl}${produk.foto_url || "/produk/keripik.svg"}`;
 
   return {
-    title: `${produk.nama} | ${toko.nama}`,
-    description: produk.deskripsi || toko.tagline,
+    title: `${produk.nama} | ${dataToko.nama}`,
+    description: produk.deskripsi || dataToko.tagline,
     openGraph: {
-      title: `${produk.nama} | ${toko.nama}`,
-      description: produk.deskripsi || toko.tagline,
+      title: `${produk.nama} | ${dataToko.nama}`,
+      description: produk.deskripsi || dataToko.tagline,
       images: [
         {
           url: ogImage,
@@ -49,10 +51,11 @@ export async function generateMetadata({ params }) {
   };
 }
 
-// US-02, US-12, US-17, US-18, US-19, US-20, US-21, US-23, US-24, US-32 (Aktif), US-38 (Ulasan)
+// US-02, US-12, US-17, US-18, US-19, US-20, US-21, US-23, US-24, US-32 (Aktif), US-38 (Ulasan), US-43 (Pengaturan Toko), US-48 (Varian), US-49 (Tautan Kategori), US-50 (Asisten AI)
 export default async function HalamanDetailProduk({ params }) {
   const { id } = await params;
   const supabase = createServerClient();
+  const dataToko = await getPengaturanToko();
 
   // 1. Ambil data produk
   const { data: produk } = await supabase
@@ -79,7 +82,18 @@ export default async function HalamanDetailProduk({ params }) {
     }
   } catch {}
 
-  // 3. Ambil ulasan produk yang berstatus tampil (US-38)
+  // 3. Ambil varian harga per ukuran (US-48)
+  let daftarVarian = [];
+  try {
+    const { data: vData } = await supabase
+      .from("varian_produk")
+      .select("*")
+      .eq("produk_id", id)
+      .order("harga", { ascending: true });
+    daftarVarian = vData || [];
+  } catch (e) {}
+
+  // 4. Ambil ulasan produk yang berstatus tampil (US-38)
   let daftarUlasan = [];
   try {
     const { data: ulasanData } = await supabase
@@ -91,7 +105,7 @@ export default async function HalamanDetailProduk({ params }) {
     daftarUlasan = ulasanData || [];
   } catch {}
 
-  // 4. Ambil produk terkait dari kategori yang sama dan hanya yang aktif (US-17 & US-32)
+  // 5. Ambil produk terkait dari kategori yang sama dan hanya yang aktif (US-17 & US-32)
   let produkTerkait = [];
   if (produk.kategori) {
     try {
@@ -131,9 +145,17 @@ export default async function HalamanDetailProduk({ params }) {
           </Link>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-teks-lembut">
-              {produk.kategori || "Umum"}
-            </span>
+            {/* US-49: Tautan kategori ke halaman /kategori/[slug] */}
+            {produk.kategori ? (
+              <Link
+                href={`/kategori/${toSlug(produk.kategori)}`}
+                className="text-sm font-semibold text-utama hover:underline"
+              >
+                {produk.kategori}
+              </Link>
+            ) : (
+              <span className="text-sm font-semibold text-teks-lembut">Umum</span>
+            )}
             {produk.badge && (
               <span className="rounded-md bg-utama px-2 py-0.5 text-xs font-bold text-white">
                 {produk.badge}
@@ -167,10 +189,17 @@ export default async function HalamanDetailProduk({ params }) {
             {produk.deskripsi || "Tidak ada deskripsi produk."}
           </p>
 
-          {/* Interaktif: jumlah, varian, order WA (US-40), keranjang, share, favorit, bandingkan (US-37), terakhir dilihat (US-36) */}
-          <DetailProdukInteraktif produk={produk} />
+          {/* Interaktif: jumlah, varian dinamis (US-48), WA dinamis (US-43), keranjang, share, favorit, bandingkan */}
+          <DetailProdukInteraktif
+            produk={produk}
+            daftarVarian={daftarVarian}
+            nomorWhatsApp={dataToko.whatsapp}
+          />
         </div>
       </article>
+
+      {/* US-50: Kotak Tanya Asisten AI tentang Produk */}
+      <AsistenAiProduk produkId={id} namaProduk={produk.nama} />
 
       {/* US-38: Ulasan dan Rating Produk */}
       <UlasanProduk produkId={id} daftarUlasan={daftarUlasan} />
