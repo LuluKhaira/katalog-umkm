@@ -1,19 +1,22 @@
 import { createServerClient } from "@/lib/supabase/server";
 
-// US-27: Dynamic sitemap.xml dari database
+// US-27 & US-32: Dynamic sitemap.xml dari database (hanya produk aktif)
 export default async function sitemap() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://katalog-umkm.vercel.app";
 
   let produkList = [];
   try {
     const supabase = createServerClient();
-    const { data } = await supabase.from("produk").select("id, created_at");
+    const { data } = await supabase
+      .from("produk")
+      .select("id, created_at")
+      .neq("aktif", false);
     produkList = data || [];
   } catch (e) {
     console.error("Gagal membuat sitemap:", e);
   }
 
-  const routesStatis = ["", "/tentang", "/favorit", "/keranjang"].map((route) => ({
+  const routesStatis = ["", "/tentang", "/favorit", "/keranjang", "/bandingkan"].map((route) => ({
     url: `${siteUrl}${route}`,
     lastModified: new Date(),
     changeFrequency: "daily",
@@ -29,4 +32,3 @@ export default async function sitemap() {
 
   return [...routesStatis, ...routesProduk];
 }
-

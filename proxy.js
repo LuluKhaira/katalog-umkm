@@ -40,6 +40,14 @@ export async function proxy(request) {
   const pathname = request.nextUrl.pathname;
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
 
+  // US-35: Ekspor CSV mengembalikan HTTP 401 jika belum login
+  if (normalizedPath === "/admin/produk/ekspor" && !user) {
+    return new NextResponse("Unauthorized: Anda harus login sebagai admin.", {
+      status: 401,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   // Semua rute di bawah /admin (kecuali /admin/login) wajib login
   if (
     (normalizedPath === "/admin" || normalizedPath.startsWith("/admin/")) &&

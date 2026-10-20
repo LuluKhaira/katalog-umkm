@@ -1,6 +1,7 @@
 import Link from "next/link";
 import KartuProduk from "@/components/KartuProduk";
 import Tombol from "@/components/Tombol";
+import TerakhirDilihat from "@/components/TerakhirDilihat";
 import { toko } from "@/lib/toko";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const PER_PAGE = 12;
 
-// US-01, US-11 (Filter & Cari), US-15 (Urutkan), US-16 (Paginasi)
+// US-01, US-11 (Filter & Cari), US-15 (Urutkan), US-16 (Paginasi), US-32 (Aktif), US-36 (Terakhir Dilihat), US-42 (Banner Promo)
 export default async function HalamanKatalog({ searchParams }) {
   const params = (await searchParams) || {};
   const cari = params.q?.toString().trim() || "";
@@ -18,6 +19,7 @@ export default async function HalamanKatalog({ searchParams }) {
 
   let daftarProduk = [];
   let daftarKategori = [];
+  let bannerAktif = null;
   let totalData = 0;
   let totalHalaman = 1;
   let pesanError = null;
@@ -25,14 +27,32 @@ export default async function HalamanKatalog({ searchParams }) {
   try {
     const supabase = createServerClient();
 
-    // 1. Ambil daftar kategori unik dari tabel produk
-    const { data: dataKategori } = await supabase.from("produk").select("kategori");
+    // US-42: Ambil banner promo aktif terbaru
+    try {
+      const { data: bData } = await supabase
+        .from("banner")
+        .select("*")
+        .eq("aktif", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      bannerAktif = bData || null;
+    } catch (e) {
+      // Abaikan jika tabel banner belum dimigrasi
+    }
+
+    // 1. Ambil daftar kategori unik dari produk aktif (US-32)
+    const { data: dataKategori } = await supabase
+      .from("produk")
+      .select("kategori")
+      .neq("aktif", false);
+
     if (dataKategori) {
       daftarKategori = [...new Set(dataKategori.map((p) => p.kategori).filter(Boolean))].sort();
     }
 
-    // 2. Bangun query dengan penyaringan di database
-    let query = supabase.from("produk").select("*", { count: "exact" });
+    // 2. Bangun query dengan penyaringan di database hanya untuk produk AKTIF (US-32)
+    let query = supabase.from("produk").select("*", { count: "exact" }).neq("aktif", false);
 
     if (cari) {
       query = query.ilike("nama", `%${cari}%`);
@@ -48,7 +68,6 @@ export default async function HalamanKatalog({ searchParams }) {
     } else if (urutan === "termahal") {
       query = query.order("harga", { ascending: false });
     } else {
-      // Default terbaru
       query = query.order("id", { ascending: false });
     }
 
@@ -84,14 +103,51 @@ export default async function HalamanKatalog({ searchParams }) {
 
   return (
     <>
-      <section className="py-10 sm:py-14">
+      {/* Header Info Toko */}
+      <section className="py-8 sm:py-12">
         <h1 className="max-w-2xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
           {toko.nama}
         </h1>
         <p className="mt-3 max-w-xl text-lg text-teks-lembut">{toko.tagline}</p>
-        <p className="mt-4 text-sm text-teks-lembut">{toko.jamBuka}</p>
+        <p className="mt-2 text-sm text-teks-lembut">{toko.jamBuka}</p>
       </section>
 
+      {/* US-42: Banner Promo di Beranda */}
+      {bannerAktif && (
+        <section
+          aria-label="Banner Promo"
+          className="mb-8 overflow-hidden rounded-2xl border border-utama/30 bg-gradient-to-r from-utama/10 to-amber-500/10 p-5 shadow-xs"
+        >
+          <div className="flex flex-col md:flex-row items-center gap-5 justify-between">
+            {bannerAktif.gambar_url && (
+              <img
+                src={bannerAktif.gambar_url}
+                alt={bannerAktif.judul}
+                className="h-28 w-full md:w-48 object-cover rounded-xl bg-latar border border-garis"
+              />
+            )}
+            <div className="flex-1 text-center md:text-left">
+              <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-utama">
+                <span>🔥</span> Promo Spesial
+              </span>
+              <h2 className="text-xl font-extrabold text-teks mt-1">{bannerAktif.judul}</h2>
+              {bannerAktif.teks && (
+                <p className="text-sm text-teks-lembut mt-1">{bannerAktif.teks}</p>
+              )}
+            </div>
+            {bannerAktif.tautan && (
+              <a
+                href={bannerAktif.tautan}
+                className="shrink-0 inline-flex items-center justify-center rounded-lg bg-utama px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-utama-gelap"
+              >
+                Lihat Promo &rarr;
+              </a>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Bagian Katalog Produk */}
       <section aria-labelledby="judul-produk" className="flex flex-col gap-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <h2 id="judul-produk" className="text-xl font-bold">
@@ -218,6 +274,9 @@ export default async function HalamanKatalog({ searchParams }) {
           </>
         )}
       </section>
+
+      {/* US-36: Deretan Produk Terakhir Dilihat */}
+      <TerakhirDilihat />
     </>
   );
 }

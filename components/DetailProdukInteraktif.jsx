@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { toko } from "@/lib/toko";
 import { formatRupiah } from "@/lib/format";
 import { useKeranjang } from "@/lib/keranjang-context";
 import TombolFavorit from "@/components/TombolFavorit";
+import { catatKlikWa } from "@/app/admin/actions";
 
-// US-12 (Jumlah & Varian), US-19 (Stok), US-20 (Harga Diskon), US-21 (Keranjang), US-23 (Bagikan)
+// US-12 (Jumlah & Varian), US-19 (Stok), US-20 (Harga Diskon), US-21 (Keranjang), US-23 (Bagikan), US-36 (Terakhir Dilihat), US-37 (Bandingkan), US-40 (Catat Klik WA)
 export default function DetailProdukInteraktif({ produk }) {
   const [jumlah, setJumlah] = useState(1);
   const [varian, setVarian] = useState("Standar");
@@ -14,6 +16,20 @@ export default function DetailProdukInteraktif({ produk }) {
   const [keranjangSukses, setKeranjangSukses] = useState(false);
 
   const { tambahItem } = useKeranjang();
+
+  // US-36: Simpan produk yang dikunjungi ke localStorage (maks 8 produk, tanpa duplikat)
+  useEffect(() => {
+    if (typeof window !== "undefined" && produk?.id) {
+      try {
+        const tersimpan = JSON.parse(localStorage.getItem("katalog_terakhir_dilihat") || "[]");
+        const filtered = Array.isArray(tersimpan)
+          ? tersimpan.filter((id) => String(id) !== String(produk.id))
+          : [];
+        const baru = [produk.id, ...filtered].slice(0, 8);
+        localStorage.setItem("katalog_terakhir_dilihat", JSON.stringify(baru));
+      } catch (e) {}
+    }
+  }, [produk?.id]);
 
   const isHabis = produk.stok !== undefined && Number(produk.stok) <= 0;
   const hargaAktif =
@@ -31,6 +47,13 @@ export default function DetailProdukInteraktif({ produk }) {
 - Jumlah: ${jumlah}
 Total: ${formatRupiah(totalHarga)}`;
   const waUrl = `https://wa.me/${toko.nomorWhatsApp}?text=${encodeURIComponent(pesanWa)}`;
+
+  // US-40: Catat klik pemesanan WhatsApp tanpa menghambat user
+  const handlePesanWa = () => {
+    if (produk?.id) {
+      catatKlikWa(produk.id).catch(() => {});
+    }
+  };
 
   // US-23: Bagikan link atau salin ke clipboard
   const handleBagikan = async () => {
@@ -132,6 +155,7 @@ Total: ${formatRupiah(totalHarga)}`;
               href={waUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handlePesanWa}
               className="inline-flex w-full items-center justify-center rounded-lg bg-utama px-5 py-3 text-center font-semibold text-white hover:bg-utama-gelap sm:w-auto"
             >
               Pesan via WhatsApp ({formatRupiah(totalHarga)})
@@ -146,7 +170,7 @@ Total: ${formatRupiah(totalHarga)}`;
           </>
         )}
 
-        {/* Tombol Bagikan (US-23) & Favorit (US-24) */}
+        {/* Tombol Bagikan (US-23), Favorit (US-24), dan Bandingkan (US-37) */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -170,6 +194,29 @@ Total: ${formatRupiah(totalHarga)}`;
             </svg>
             <span>Bagikan</span>
           </button>
+
+          <Link
+            href={`/bandingkan?a=${produk.id}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-garis bg-permukaan px-3 py-2.5 text-sm font-semibold text-teks hover:border-utama"
+            title="Bandingkan produk ini"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+            <span>Bandingkan</span>
+          </Link>
+
           <TombolFavorit id={produk.id} className="border border-garis bg-permukaan" />
         </div>
       </div>
@@ -180,4 +227,3 @@ Total: ${formatRupiah(totalHarga)}`;
     </div>
   );
 }
-

@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import GaleriFoto from "@/components/GaleriFoto";
 import DetailProdukInteraktif from "@/components/DetailProdukInteraktif";
 import KartuProduk from "@/components/KartuProduk";
+import UlasanProduk from "@/components/UlasanProduk";
 
 // US-26: generateMetadata untuk SEO dan Open Graph
 export async function generateMetadata({ params }) {
@@ -14,11 +15,12 @@ export async function generateMetadata({ params }) {
 
   const { data: produk } = await supabase
     .from("produk")
-    .select("nama, deskripsi, foto_url")
+    .select("nama, deskripsi, foto_url, aktif")
     .eq("id", id)
     .maybeSingle();
 
-  if (!produk) {
+  // US-32: Jika produk tidak ditemukan atau nonaktif, kembalikan metadata 404
+  if (!produk || produk.aktif === false) {
     return {
       title: "Produk Tidak Ditemukan",
     };
@@ -47,7 +49,7 @@ export async function generateMetadata({ params }) {
   };
 }
 
-// US-02, US-12, US-17, US-18, US-19, US-20, US-21, US-23, US-24
+// US-02, US-12, US-17, US-18, US-19, US-20, US-21, US-23, US-24, US-32 (Aktif), US-38 (Ulasan)
 export default async function HalamanDetailProduk({ params }) {
   const { id } = await params;
   const supabase = createServerClient();
@@ -59,7 +61,8 @@ export default async function HalamanDetailProduk({ params }) {
     .eq("id", id)
     .maybeSingle();
 
-  if (!produk) {
+  // US-32: Jika produk tidak ada atau nonaktif, panggil notFound()
+  if (!produk || produk.aktif === false) {
     notFound();
   }
 
@@ -76,7 +79,19 @@ export default async function HalamanDetailProduk({ params }) {
     }
   } catch {}
 
-  // 3. Ambil produk terkait dari kategori yang sama (US-17)
+  // 3. Ambil ulasan produk yang berstatus tampil (US-38)
+  let daftarUlasan = [];
+  try {
+    const { data: ulasanData } = await supabase
+      .from("ulasan")
+      .select("*")
+      .eq("produk_id", id)
+      .eq("tampil", true)
+      .order("created_at", { ascending: false });
+    daftarUlasan = ulasanData || [];
+  } catch {}
+
+  // 4. Ambil produk terkait dari kategori yang sama dan hanya yang aktif (US-17 & US-32)
   let produkTerkait = [];
   if (produk.kategori) {
     try {
@@ -85,6 +100,7 @@ export default async function HalamanDetailProduk({ params }) {
         .select("*")
         .eq("kategori", produk.kategori)
         .neq("id", id)
+        .neq("aktif", false)
         .limit(4);
       produkTerkait = terkait || [];
     } catch {}
@@ -151,12 +167,15 @@ export default async function HalamanDetailProduk({ params }) {
             {produk.deskripsi || "Tidak ada deskripsi produk."}
           </p>
 
-          {/* Interaktif: jumlah, varian, order WA, tambah ke keranjang, share, favorit */}
+          {/* Interaktif: jumlah, varian, order WA (US-40), keranjang, share, favorit, bandingkan (US-37), terakhir dilihat (US-36) */}
           <DetailProdukInteraktif produk={produk} />
         </div>
       </article>
 
-      {/* US-17: Produk Terkait */}
+      {/* US-38: Ulasan dan Rating Produk */}
+      <UlasanProduk produkId={id} daftarUlasan={daftarUlasan} />
+
+      {/* US-17 & US-32: Produk Terkait (Hanya produk aktif) */}
       {produkTerkait.length > 0 && (
         <section className="mt-16 border-t border-garis pt-10">
           <h2 className="mb-6 text-xl font-bold">Produk terkait</h2>
