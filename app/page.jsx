@@ -44,17 +44,29 @@ export default async function HalamanKatalog({ searchParams }) {
       // Abaikan jika tabel banner belum dimigrasi
     }
 
-    // 1. Ambil daftar kategori unik dari produk aktif (US-32)
-    const { data: dataKategori } = await supabase
-      .from("produk")
-      .select("kategori")
-      .neq("aktif", false);
+    // 1. Ambil daftar kategori unik dari produk (dengan fallback jika kolom 'aktif' belum ada)
+    try {
+      const resKat = await supabase
+        .from("produk")
+        .select("kategori")
+        .neq("aktif", false);
 
-    if (dataKategori) {
+      if (resKat.error && (resKat.error.code === "42703" || resKat.error.message?.includes("aktif"))) {
+        const fb = await supabase.from("produk").select("kategori");
+        dataKategori = fb.data || [];
+      } else {
+        dataKategori = resKat.data || [];
+      }
+    } catch (e) {
+      const fb = await supabase.from("produk").select("kategori");
+      dataKategori = fb.data || [];
+    }
+
+    if (dataKategori && dataKategori.length > 0) {
       daftarKategori = [...new Set(dataKategori.map((p) => p.kategori).filter(Boolean))].sort();
     }
 
-    // 2. Bangun query dengan penyaringan di database hanya untuk produk AKTIF (US-32)
+    // 2. Bangun query dengan penyaringan di database
     let query = supabase.from("produk").select("*", { count: "exact" }).neq("aktif", false);
 
     if (cari) {
@@ -82,12 +94,25 @@ export default async function HalamanKatalog({ searchParams }) {
 
     let res = await query;
 
-    // Fallback jika kolom urutan belum dimigrasi
-    if (res.error && res.error.message?.includes("urutan")) {
-      let fallbackQuery = supabase.from("produk").select("*", { count: "exact" }).neq("aktif", false);
+    // Fallback jika kolom 'aktif' atau 'urutan' belum dimigrasi di database Supabase (error 42703)
+    if (
+      res.error &&
+      (res.error.code === "42703" ||
+        res.error.message?.includes("does not exist") ||
+        res.error.message?.includes("aktif") ||
+        res.error.message?.includes("urutan"))
+    ) {
+      let fallbackQuery = supabase.from("produk").select("*", { count: "exact" });
       if (cari) fallbackQuery = fallbackQuery.ilike("nama", `%${cari}%`);
       if (kategoriDipilih) fallbackQuery = fallbackQuery.eq("kategori", kategoriDipilih);
-      fallbackQuery = fallbackQuery.order("id", { ascending: false }).range(from, to);
+      if (urutan === "termurah") {
+        fallbackQuery = fallbackQuery.order("harga", { ascending: true });
+      } else if (urutan === "termahal") {
+        fallbackQuery = fallbackQuery.order("harga", { ascending: false });
+      } else {
+        fallbackQuery = fallbackQuery.order("id", { ascending: false });
+      }
+      fallbackQuery = fallbackQuery.range(from, to);
       res = await fallbackQuery;
     }
 

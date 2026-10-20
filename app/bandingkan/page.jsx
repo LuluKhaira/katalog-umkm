@@ -25,28 +25,41 @@ export default async function HalamanBandingkan({ searchParams }) {
   try {
     const supabase = createServerClient();
 
-    // Ambil semua produk aktif untuk pilihan dropdown
-    const { data: daftar } = await supabase
+    // Ambil semua produk aktif untuk pilihan dropdown (dengan fallback jika kolom aktif belum ada)
+    let resDaftar = await supabase
       .from("produk")
       .select("id, nama, harga, foto_url")
       .neq("aktif", false)
       .order("nama", { ascending: true });
 
-    semuaProduk = daftar || [];
+    if (resDaftar.error && (resDaftar.error.code === "42703" || resDaftar.error.message?.includes("aktif"))) {
+      resDaftar = await supabase
+        .from("produk")
+        .select("id, nama, harga, foto_url")
+        .order("nama", { ascending: true });
+    }
+
+    semuaProduk = resDaftar.data || [];
 
     // Ambil detail produk A dan B
     const idsToFetch = [idA, idB].filter(Boolean);
     if (idsToFetch.length > 0) {
-      const { data: detailData } = await supabase
+      let resDetail = await supabase
         .from("produk")
         .select("*")
         .in("id", idsToFetch)
         .neq("aktif", false);
 
-      if (detailData) {
-        produkA = detailData.find((p) => String(p.id) === String(idA)) || null;
-        produkB = detailData.find((p) => String(p.id) === String(idB)) || null;
+      if (resDetail.error && (resDetail.error.code === "42703" || resDetail.error.message?.includes("aktif"))) {
+        resDetail = await supabase
+          .from("produk")
+          .select("*")
+          .in("id", idsToFetch);
       }
+
+      const detailData = resDetail.data || [];
+      produkA = detailData.find((p) => String(p.id) === String(idA)) || null;
+      produkB = detailData.find((p) => String(p.id) === String(idB)) || null;
     }
   } catch (e) {
     console.error("Gagal memuat produk perbandingan:", e);

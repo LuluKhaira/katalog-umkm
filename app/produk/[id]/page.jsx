@@ -17,7 +17,7 @@ export async function generateMetadata({ params }) {
 
   const { data: produk } = await supabase
     .from("produk")
-    .select("nama, deskripsi, foto_url, aktif")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
 
@@ -109,14 +109,23 @@ export default async function HalamanDetailProduk({ params }) {
   let produkTerkait = [];
   if (produk.kategori) {
     try {
-      const { data: terkait } = await supabase
+      let resTerkait = await supabase
         .from("produk")
         .select("*")
         .eq("kategori", produk.kategori)
         .neq("id", id)
         .neq("aktif", false)
         .limit(4);
-      produkTerkait = terkait || [];
+
+      if (resTerkait.error && (resTerkait.error.code === "42703" || resTerkait.error.message?.includes("aktif"))) {
+        resTerkait = await supabase
+          .from("produk")
+          .select("*")
+          .eq("kategori", produk.kategori)
+          .neq("id", id)
+          .limit(4);
+      }
+      produkTerkait = resTerkait.data || [];
     } catch {}
   }
 

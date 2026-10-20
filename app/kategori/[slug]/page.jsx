@@ -81,12 +81,17 @@ export default async function HalamanKategori({ params }) {
     query = query.order("urutan", { ascending: false }).order("id", { ascending: false });
 
     let res = await query;
-    if (res.error && res.error.message?.includes("urutan")) {
+    if (
+      res.error &&
+      (res.error.code === "42703" ||
+        res.error.message?.includes("does not exist") ||
+        res.error.message?.includes("urutan") ||
+        res.error.message?.includes("aktif"))
+    ) {
       res = await supabase
         .from("produk")
         .select("*")
         .eq("kategori", namaKategori)
-        .neq("aktif", false)
         .order("id", { ascending: false });
     }
 

@@ -9,11 +9,15 @@ export default async function sitemap() {
 
   try {
     const supabase = createServerClient();
-    const { data: pData } = await supabase
+    let resP = await supabase
       .from("produk")
       .select("id, created_at")
       .neq("aktif", false);
-    produkList = pData || [];
+
+    if (resP.error && (resP.error.code === "42703" || resP.error.message?.includes("aktif"))) {
+      resP = await supabase.from("produk").select("id, created_at");
+    }
+    produkList = resP.data || [];
 
     const { data: kData } = await supabase.from("kategori").select("slug");
     kategoriList = kData || [];

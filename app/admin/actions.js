@@ -848,13 +848,18 @@ export async function ambilProdukByIds(ids = []) {
   if (!Array.isArray(ids) || ids.length === 0) return [];
   try {
     const supabase = createServerClient();
-    const { data, error } = await supabase
+    let res = await supabase
       .from("produk")
       .select("*")
       .in("id", ids)
       .neq("aktif", false);
 
-    if (error || !data) return [];
+    if (res.error && (res.error.code === "42703" || res.error.message?.includes("aktif"))) {
+      res = await supabase.from("produk").select("*").in("id", ids);
+    }
+
+    const data = res.data;
+    if (res.error || !data) return [];
 
     // Urutkan sesuai urutan kunjungan di localStorage
     const idMap = new Map(data.map((p) => [String(p.id), p]));
