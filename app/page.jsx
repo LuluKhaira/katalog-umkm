@@ -44,27 +44,13 @@ export default async function HalamanKatalog({ searchParams }) {
       // Abaikan jika tabel banner belum dimigrasi
     }
 
-    // 1. Ambil daftar kategori unik dari produk (dengan fallback jika kolom 'aktif' belum ada)
+    // 1. Ambil daftar kategori unik dari produk
     try {
-      const resKat = await supabase
-        .from("produk")
-        .select("kategori")
-        .neq("aktif", false);
-
-      if (resKat.error && (resKat.error.code === "42703" || resKat.error.message?.includes("aktif"))) {
-        const fb = await supabase.from("produk").select("kategori");
-        dataKategori = fb.data || [];
-      } else {
-        dataKategori = resKat.data || [];
+      const { data: rawKategori } = await supabase.from("produk").select("kategori");
+      if (rawKategori && Array.isArray(rawKategori)) {
+        daftarKategori = [...new Set(rawKategori.map((p) => p.kategori).filter(Boolean))].sort();
       }
-    } catch (e) {
-      const fb = await supabase.from("produk").select("kategori");
-      dataKategori = fb.data || [];
-    }
-
-    if (dataKategori && dataKategori.length > 0) {
-      daftarKategori = [...new Set(dataKategori.map((p) => p.kategori).filter(Boolean))].sort();
-    }
+    } catch (e) {}
 
     // 2. Bangun query dengan penyaringan di database
     let query = supabase.from("produk").select("*", { count: "exact" }).neq("aktif", false);
